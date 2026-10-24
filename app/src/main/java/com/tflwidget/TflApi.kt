@@ -1,5 +1,7 @@
 package com.tflwidget
 
+import android.content.Context
+import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -22,6 +24,28 @@ data class Arrival(
 /** Minimal client for the TfL Unified API (https://api.tfl.gov.uk). */
 object TflApi {
     private const val BASE = "https://api.tfl.gov.uk"
+
+    /**
+     * Station layouts and line stop lists rarely change, so they're kept on disk for a
+     * week. Otherwise they'd be downloaded again whenever Android closes the app.
+     */
+    private var store: SharedPreferences? = null
+    private const val STATIC_TTL_MS = 7L * 24 * 60 * 60 * 1000
+
+    fun init(context: Context) {
+        store = context.getSharedPreferences("tfl_static", Context.MODE_PRIVATE)
+    }
+
+    private fun readStatic(key: String): String? {
+        val sp = store ?: return null
+        val savedAt = sp.getLong("${key}_at", 0)
+        if (System.currentTimeMillis() - savedAt > STATIC_TTL_MS) return null
+        return sp.getString(key, null)
+    }
+
+    private fun writeStatic(key: String, value: String) {
+        store?.edit()?.putString(key, value)?.putLong("${key}_at", System.currentTimeMillis())?.apply()
+    }
     private const val MODES = "tube,dlr,overground,elizabeth-line,tram,bus,national-rail"
 
     private fun get(path: String): String {
@@ -87,10 +111,22 @@ object TflApi {
         }
     }
 
+    private val childCache = mutableMapOf<String, List<String>>()
+
+    /** Child stops of a station (memory, then disk, then network). */
     private fun childIds(id: String): List<String> {
-        val sp = JSONObject(get("/StopPoint/${enc(id)}"))
-        val children = sp.optJSONArray("children") ?: return emptyList()
-        return (0 until children.length()).map { children.getJSONObject(it).getString("id") }
+        childCache[id]?.let { return it }
+        val key = "children_$id"
+        val saved = readStatic(key)?.let { JSONArray(it) }
+        val list = if (saved != null) {
+            (0 until saved.length()).map { saved.getString(it) }
+        } else {
+            val sp = JSONObject(get("/StopPoint/${enc(id)}"))
+            val children = sp.optJSONArray("children") ?: JSONArray()
+            (0 until children.length()).map { children.getJSONObject(it).getString("id") }
+                .also { writeStatic(key, JSONArray(it).toString()) }
+        }
+        return list.also { childCache[id] = it }
     }
 
     // ---- Destination filtering ----
@@ -101,11 +137,20 @@ object TflApi {
     /** Ordered stop lists for every branch/direction of a line. */
     private fun routeSequences(lineId: String): List<List<String>> =
         routeCache[lineId] ?: run {
-            val json = JSONObject(get("/Line/${enc(lineId)}/Route/Sequence/all?excludeCrowding=true"))
-            val routes = json.optJSONArray("orderedLineRoutes") ?: JSONArray()
-            val list = (0 until routes.length()).map { i ->
-                val ids = routes.getJSONObject(i).optJSONArray("naptanIds") ?: JSONArray()
-                (0 until ids.length()).map { ids.getString(it) }
+            val key = "route_$lineId"
+            val saved = readStatic(key)?.let { JSONArray(it) }
+            val list = if (saved != null) {
+                (0 until saved.length()).map { i ->
+                    val r = saved.getJSONArray(i)
+                    (0 until r.length()).map { r.getString(it) }
+                }
+            } else {
+                val json = JSONObject(get("/Line/${enc(lineId)}/Route/Sequence/all?excludeCrowding=true"))
+                val routes = json.optJSONArray("orderedLineRoutes") ?: JSONArray()
+                (0 until routes.length()).map { i ->
+                    val ids = routes.getJSONObject(i).optJSONArray("naptanIds") ?: JSONArray()
+                    (0 until ids.length()).map { ids.getString(it) }
+                }.also { l -> writeStatic(key, JSONArray(l.map { JSONArray(it) }).toString()) }
             }
             list.also { routeCache[lineId] = it }
         }

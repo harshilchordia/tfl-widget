@@ -1,6 +1,9 @@
 package com.tflwidget
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
@@ -17,6 +20,10 @@ class DeparturesWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
+        if (intent.action == ACTION_TICK) {
+            redrawAll(context)
+            scheduleTick(context)
+        }
         if (intent.action == ACTION_REFRESH) {
             val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             if (id != AppWidgetManager.INVALID_APPWIDGET_ID) {
@@ -42,10 +49,47 @@ class DeparturesWidget : AppWidgetProvider() {
             cancelUniqueWork(PERIODIC_WORK)
             cancelUniqueWork(AUTO_WORK)
         }
+        (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(tickIntent(context))
     }
 
     companion object {
         const val ACTION_REFRESH = "com.tflwidget.REFRESH"
+        private const val ACTION_TICK = "com.tflwidget.TICK"
+
+        private fun screenOn(context: Context) =
+            (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).isInteractive
+
+        /** Screen off: stop the refresh loop and the minute redraws until the phone wakes. */
+        fun pauseForScreenOff(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(AUTO_WORK)
+            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(tickIntent(context))
+        }
+
+        private fun widgetIds(context: Context) = AppWidgetManager.getInstance(context)
+            .getAppWidgetIds(ComponentName(context, DeparturesWidget::class.java))
+
+        /** Redraw every widget from saved data: no network, just drops departed trains. */
+        fun redrawAll(context: Context) {
+            widgetIds(context).forEach { WidgetRenderer.renderFromCache(context, it) }
+        }
+
+        private fun tickIntent(context: Context) = PendingIntent.getBroadcast(
+            context, 0,
+            Intent(context, DeparturesWidget::class.java).setAction(ACTION_TICK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        /**
+         * Schedules a redraw at the start of the next minute so countdowns tick and
+         * departed trains disappear. Uses a non-waking alarm: while the phone is asleep
+         * it's held back and fires as soon as the phone wakes, so it costs no battery.
+         */
+        fun scheduleTick(context: Context) {
+            if (widgetIds(context).isEmpty() || !screenOn(context)) return
+            val next = (System.currentTimeMillis() / 60_000 + 1) * 60_000 + 1_000
+            (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager)
+                .set(AlarmManager.RTC, next, tickIntent(context))
+        }
         private const val PERIODIC_WORK = "tfl_periodic"
         private const val AUTO_WORK = "tfl_auto"
 

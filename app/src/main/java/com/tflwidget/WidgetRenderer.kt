@@ -63,37 +63,47 @@ object WidgetRenderer {
 
     fun showLoading(ctx: Context, id: Int) {
         val v = RemoteViews(ctx.packageName, R.layout.widget_departures)
-        v.setTextViewText(R.id.updated, "Refreshing…")
+        v.setTextViewText(R.id.updated, "…")
         AppWidgetManager.getInstance(ctx).partiallyUpdateAppWidget(id, v)
     }
 
-    fun showArrivals(ctx: Context, widgetId: Int, title: String, arrivals: List<Arrival>, filtered: Boolean = false) {
-        if (arrivals.isEmpty()) {
-            message(ctx, widgetId, title,
-                if (filtered) "No live departures to your destination right now" else "No live departures right now")
-            return
+    /**
+     * Draws the widget from its saved departures. Trains whose departure time has
+     * passed are dropped and minutes are worked out from the current time, so this
+     * stays correct between network refreshes. Returns false if there's nothing saved.
+     */
+    fun renderFromCache(ctx: Context, widgetId: Int): Boolean {
+        val cache = Prefs.loadCache(ctx, widgetId) ?: return false
+        val now = System.currentTimeMillis()
+        val upcoming = cache.arrivals.filter { it.expectedEpochMs >= now }
+        val updated = timeFmt.format(Date(cache.fetchedAt))
+
+        if (upcoming.isEmpty()) {
+            message(ctx, widgetId, cache.title,
+                if (cache.filtered) "No live departures to your destination right now" else "No live departures right now")
+            return true
         }
-        val v = base(ctx, widgetId, title)
-        val size = size(ctx, widgetId)
+        val v = base(ctx, widgetId, cache.title)
         val showClock = Prefs.showClock(ctx, widgetId)
         v.setViewVisibility(R.id.message, View.GONE)
         v.setViewVisibility(R.id.rows, View.VISIBLE)
         // Scrollable list: all departures, the widget size just decides how many are visible at once
-        setRows(ctx, widgetId, v, arrivals.take(MAX_ROWS).map { a ->
+        setRows(ctx, widgetId, v, upcoming.take(MAX_ROWS).map { a ->
             RemoteViews(ctx.packageName, R.layout.widget_row).apply {
                 setInt(R.id.line_color, "setBackgroundColor", lineColor(a.lineId))
                 setTextViewText(R.id.destination, a.destination)
                 setTextViewText(R.id.details, listOf(a.lineName, a.platform).filter { it.isNotBlank() }.joinToString(" · "))
-                val mins = a.secondsToStation / 60
+                val mins = ((a.expectedEpochMs - now) / 60_000).toInt()
                 setTextViewText(R.id.eta, if (mins == 0) "Due" else "$mins min")
                 setTextViewText(R.id.clock_time, timeFmt.format(Date(a.expectedEpochMs)))
                 setViewVisibility(R.id.clock_time, if (showClock) View.VISIBLE else View.GONE)
                 setOnClickFillInIntent(R.id.row_root, Intent()) // tap a row = refresh
             }
         })
-        // Not enough room for "Updated HH:mm" next to the name on narrow widgets
-        v.setTextViewText(R.id.updated, if (size.narrow) "" else "Updated " + timeFmt.format(Date()))
+        // Time of the last successful fetch (not this redraw), so you can tell how fresh it is
+        v.setTextViewText(R.id.updated, updated)
         push(ctx, widgetId, v)
+        return true
     }
 
     /** "Oxford Circus Underground Station → Brixton Underground Station" → "Oxford Circus → Brixton" */
@@ -107,13 +117,6 @@ object WidgetRenderer {
             .apply { rows.forEachIndexed { i, r -> addItem(i.toLong(), r) } }
             .build()
         RemoteViewsCompat.setRemoteAdapter(ctx, v, widgetId, R.id.rows, items)
-    }
-
-    private data class Size(val narrow: Boolean)
-
-    private fun size(ctx: Context, widgetId: Int): Size {
-        val o = AppWidgetManager.getInstance(ctx).getAppWidgetOptions(widgetId)
-        return Size(narrow = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250) < 180)
     }
 
     private fun lineColor(lineId: String): Int = Color.parseColor(

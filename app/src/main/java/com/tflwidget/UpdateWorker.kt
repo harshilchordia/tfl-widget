@@ -17,12 +17,14 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         val ctx = applicationContext
         val auto = inputData.getBoolean(KEY_AUTO, false)
         val screenOn = (ctx.getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
-        if (auto || single(inputData) == AppWidgetManager.INVALID_APPWIDGET_ID) {
-            // Keep the loop going (periodic safety-net runs restart it if it died)
-            DeparturesWidget.scheduleAuto(ctx, if (auto) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP)
-        }
-        // Nobody can see the widget with the screen off, so don't spend battery/data on it
-        if (auto && !screenOn) return@withContext Result.success()
+        val periodic = !auto && single(inputData) == AppWidgetManager.INVALID_APPWIDGET_ID
+
+        // The auto-refresh loop only runs while the screen is on. With the screen off it
+        // stops completely (no more wake-ups); unlocking the phone restarts it.
+        if (!screenOn && (auto || periodic)) return@withContext Result.success()
+        if (auto) DeparturesWidget.scheduleAuto(ctx, ExistingWorkPolicy.APPEND_OR_REPLACE)
+        // 15-minute safety net: restart the loop if Android dropped it
+        if (periodic) DeparturesWidget.scheduleAuto(ctx, ExistingWorkPolicy.KEEP)
 
         val single = single(inputData)
         val ids = if (single != AppWidgetManager.INVALID_APPWIDGET_ID) intArrayOf(single)
@@ -38,18 +40,38 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             val from = Prefs.stopName(ctx, id) ?: stopId
             val destId = Prefs.destId(ctx, id)
             val title = Prefs.destName(ctx, id)?.let { "$from → $it" } ?: from
+            // Scheduled refreshes skip the network when the saved data is still good:
+            // it's recent and the next train is a while away, so nothing would change.
+            // (Taps, unlocks and settings changes always fetch.)
+            if (auto && isFresh(ctx, id, title)) {
+                WidgetRenderer.renderFromCache(ctx, id)
+                continue
+            }
             try {
                 var arrivals = TflApi.arrivals(stopId)
                 if (destId != null) {
                     val destIds = TflApi.stopIds(destId)
                     arrivals = arrivals.filter { TflApi.callsAt(it, destIds) }
                 }
-                WidgetRenderer.showArrivals(ctx, id, title, arrivals, filtered = destId != null)
+                Prefs.saveCache(ctx, id, Prefs.Cache(title, destId != null, System.currentTimeMillis(), arrivals))
+                WidgetRenderer.renderFromCache(ctx, id)
             } catch (e: Exception) {
-                WidgetRenderer.showError(ctx, id, title, e.message ?: "Network error")
+                // Keep showing the last departures (minus any that have left) rather than an error
+                val cached = Prefs.loadCache(ctx, id)?.takeIf { it.title == title }
+                if (cached == null || !WidgetRenderer.renderFromCache(ctx, id)) {
+                    WidgetRenderer.showError(ctx, id, title, e.message ?: "Network error")
+                }
             }
         }
+        DeparturesWidget.scheduleTick(ctx)
         Result.success()
+    }
+
+    private fun isFresh(ctx: Context, id: Int, title: String): Boolean {
+        val cache = Prefs.loadCache(ctx, id)?.takeIf { it.title == title } ?: return false
+        val now = System.currentTimeMillis()
+        val next = cache.arrivals.firstOrNull { it.expectedEpochMs >= now } ?: return false
+        return now - cache.fetchedAt < FRESH_MS && next.expectedEpochMs - now >= NEXT_TRAIN_MS
     }
 
     private fun single(d: Data) = d.getInt(KEY_WIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
@@ -57,5 +79,7 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
     companion object {
         const val KEY_WIDGET_ID = "widget_id"
         const val KEY_AUTO = "auto"
+        private const val FRESH_MS = 2 * 60_000L
+        private const val NEXT_TRAIN_MS = 5 * 60_000L
     }
 }

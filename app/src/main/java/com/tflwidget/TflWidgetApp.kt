@@ -22,7 +22,9 @@ class TflWidgetApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        TflApi.init(this)
         val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_USER_PRESENT)
         }
@@ -33,6 +35,10 @@ class TflWidgetApp : Application() {
         private var lastRefresh = 0L
 
         override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_OFF) {
+                DeparturesWidget.pauseForScreenOff(context)
+                return
+            }
             // Screen-on and unlock usually arrive a few seconds apart: only refresh once
             val now = SystemClock.elapsedRealtime()
             if (now - lastRefresh < DEBOUNCE_MS) return
@@ -40,7 +46,11 @@ class TflWidgetApp : Application() {
                 .getAppWidgetIds(ComponentName(context, DeparturesWidget::class.java))
             if (ids.isEmpty()) return
             lastRefresh = now
+            DeparturesWidget.redrawAll(context) // instant: hide trains that left while the screen was off
+            DeparturesWidget.scheduleTick(context)
             ids.forEach { DeparturesWidget.refreshNow(context, it) }
+            // Restart the auto-refresh loop that was paused when the screen went off
+            DeparturesWidget.scheduleAuto(context, androidx.work.ExistingWorkPolicy.REPLACE)
         }
     }
 

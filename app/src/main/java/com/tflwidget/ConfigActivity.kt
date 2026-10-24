@@ -80,6 +80,7 @@ class ConfigActivity : AppCompatActivity() {
             Prefs.saveStation(this, widgetId, from.id, from.name)
             Prefs.saveDestination(this, widgetId, to?.id, to?.name)
             Prefs.setShowClock(this, widgetId, clockSwitch.isChecked)
+            Prefs.clearCache(this, widgetId) // old station's departures must not be redrawn
 
             WidgetRenderer.showLoading(this, widgetId)
             DeparturesWidget.refreshNow(this, widgetId)
