@@ -17,9 +17,6 @@
     <string name="auto_refresh">Auto-refresh</string>
     <string name="auto_refresh_summary">Applies to all widgets. Only refreshes while the screen is on.</string>
 
-    <string name="section_advanced">Advanced</string>
-    <string name="app_key_hint">TfL API key (optional)</string>
-    <string name="app_key_summary">Free from api-portal.tfl.gov.uk. Gives higher rate limits.</string>
 
     <string name="save">Save</string>
     <string name="searching">Searching…</string>

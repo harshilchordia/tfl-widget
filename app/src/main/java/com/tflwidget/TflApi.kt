@@ -24,9 +24,8 @@ object TflApi {
     private const val BASE = "https://api.tfl.gov.uk"
     private const val MODES = "tube,dlr,overground,elizabeth-line,tram,bus,national-rail"
 
-    private fun get(path: String, appKey: String?): String {
-        val sep = if (path.contains('?')) '&' else '?'
-        val url = BASE + path + if (!appKey.isNullOrBlank()) "${sep}app_key=${enc(appKey)}" else ""
+    private fun get(path: String): String {
+        val url = BASE + path
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 10_000
         conn.readTimeout = 15_000
@@ -42,8 +41,8 @@ object TflApi {
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
-    fun searchStations(query: String, appKey: String?): List<Station> {
-        val json = JSONObject(get("/StopPoint/Search/${enc(query)}?modes=$MODES&maxResults=25", appKey))
+    fun searchStations(query: String): List<Station> {
+        val json = JSONObject(get("/StopPoint/Search/${enc(query)}?modes=$MODES&maxResults=25"))
         val matches = json.optJSONArray("matches") ?: return emptyList()
         return (0 until matches.length()).map { i ->
             val m = matches.getJSONObject(i)
@@ -56,19 +55,19 @@ object TflApi {
      * Gets arrivals for a stop. Hub IDs (e.g. HUBKGX) and stop areas often return
      * nothing directly, so fall back to querying their child stops.
      */
-    fun arrivals(stopId: String, appKey: String?): List<Arrival> {
-        var result = if (stopId.startsWith("HUB")) emptyList() else fetchArrivals(stopId, appKey)
+    fun arrivals(stopId: String): List<Arrival> {
+        var result = if (stopId.startsWith("HUB")) emptyList() else fetchArrivals(stopId)
         if (result.isEmpty()) {
-            result = childIds(stopId, appKey).take(10).flatMap {
-                runCatching { fetchArrivals(it, appKey) }.getOrDefault(emptyList())
+            result = childIds(stopId).take(10).flatMap {
+                runCatching { fetchArrivals(it) }.getOrDefault(emptyList())
             }
         }
         return result.distinctBy { Triple(it.lineId, it.destination, it.secondsToStation) }
             .sortedBy { it.secondsToStation }
     }
 
-    private fun fetchArrivals(id: String, appKey: String?): List<Arrival> {
-        val arr = JSONArray(get("/StopPoint/${enc(id)}/Arrivals", appKey))
+    private fun fetchArrivals(id: String): List<Arrival> {
+        val arr = JSONArray(get("/StopPoint/${enc(id)}/Arrivals"))
         return (0 until arr.length()).map { i ->
             val a = arr.getJSONObject(i)
             Arrival(
@@ -88,8 +87,8 @@ object TflApi {
         }
     }
 
-    private fun childIds(id: String, appKey: String?): List<String> {
-        val sp = JSONObject(get("/StopPoint/${enc(id)}", appKey))
+    private fun childIds(id: String): List<String> {
+        val sp = JSONObject(get("/StopPoint/${enc(id)}"))
         val children = sp.optJSONArray("children") ?: return emptyList()
         return (0 until children.length()).map { children.getJSONObject(it).getString("id") }
     }
@@ -100,9 +99,9 @@ object TflApi {
     private val stopIdCache = mutableMapOf<String, Set<String>>()
 
     /** Ordered stop lists for every branch/direction of a line. */
-    private fun routeSequences(lineId: String, appKey: String?): List<List<String>> =
+    private fun routeSequences(lineId: String): List<List<String>> =
         routeCache[lineId] ?: run {
-            val json = JSONObject(get("/Line/${enc(lineId)}/Route/Sequence/all?excludeCrowding=true", appKey))
+            val json = JSONObject(get("/Line/${enc(lineId)}/Route/Sequence/all?excludeCrowding=true"))
             val routes = json.optJSONArray("orderedLineRoutes") ?: JSONArray()
             val list = (0 until routes.length()).map { i ->
                 val ids = routes.getJSONObject(i).optJSONArray("naptanIds") ?: JSONArray()
@@ -112,17 +111,17 @@ object TflApi {
         }
 
     /** A station ID plus its child stops (hubs contain tube/rail/DLR stations). */
-    fun stopIds(id: String, appKey: String?): Set<String> =
-        stopIdCache[id] ?: (setOf(id) + runCatching { childIds(id, appKey) }.getOrDefault(emptyList()))
+    fun stopIds(id: String): Set<String> =
+        stopIdCache[id] ?: (setOf(id) + runCatching { childIds(id) }.getOrDefault(emptyList()))
             .also { stopIdCache[id] = it }
 
     /**
      * True if the train will call at any of [destIds] after leaving its current stop.
      * If we can't tell (missing data / API failure), the departure is kept.
      */
-    fun callsAt(a: Arrival, destIds: Set<String>, appKey: String?): Boolean {
+    fun callsAt(a: Arrival, destIds: Set<String>): Boolean {
         if (a.destinationNaptanId in destIds) return true
-        val routes = runCatching { routeSequences(a.lineId, appKey) }.getOrElse { return true }
+        val routes = runCatching { routeSequences(a.lineId) }.getOrElse { return true }
         if (routes.isEmpty() || a.naptanId.isBlank()) return true
         var originKnown = false
         for (r in routes) {

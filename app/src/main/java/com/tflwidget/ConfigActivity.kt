@@ -18,7 +18,6 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputLayout
-import com.tflwidget.Prefs.appKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -50,7 +49,6 @@ class ConfigActivity : AppCompatActivity() {
         toField = StationField(findViewById(R.id.to_layout), findViewById(R.id.to_input)) { updateSaveEnabled() }
 
         val clockSwitch = findViewById<MaterialSwitch>(R.id.show_clock_switch)
-        val keyInput = findViewById<TextView>(R.id.app_key_input)
         val refreshInput = findViewById<MaterialAutoCompleteTextView>(R.id.refresh_input)
 
         val refreshLabels = Prefs.REFRESH_OPTIONS.map { if (it == 1) "Every minute" else "Every $it minutes" }
@@ -58,8 +56,6 @@ class ConfigActivity : AppCompatActivity() {
         var refreshIndex = Prefs.REFRESH_OPTIONS.indexOf(Prefs.refreshMinutes(this)).coerceAtLeast(0)
         refreshInput.setText(refreshLabels[refreshIndex], false)
         refreshInput.setOnItemClickListener { _, _, pos, _ -> refreshIndex = pos }
-
-        keyInput.text = appKey ?: ""
 
         // Reconfiguring an existing widget: pre-fill its current settings
         if (hasWidget) {
@@ -80,7 +76,6 @@ class ConfigActivity : AppCompatActivity() {
         saveButton.setOnClickListener {
             val from = fromField.selected ?: return@setOnClickListener
             val to = toField.selected
-            appKey = keyInput.text.toString().trim().ifBlank { null }
             Prefs.setRefreshMinutes(this, Prefs.REFRESH_OPTIONS[refreshIndex])
             Prefs.saveStation(this, widgetId, from.id, from.name)
             Prefs.saveDestination(this, widgetId, to?.id, to?.name)
@@ -158,7 +153,7 @@ class ConfigActivity : AppCompatActivity() {
                 delay(300) // wait for the user to stop typing
                 layout.helperText = getString(R.string.searching)
                 val result = withContext(Dispatchers.IO) {
-                    runCatching { TflApi.searchStations(query, appKey) }
+                    runCatching { TflApi.searchStations(query) }
                 }
                 result.onSuccess { stations ->
                     layout.helperText = if (stations.isEmpty()) getString(R.string.no_results) else null

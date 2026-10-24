@@ -8,7 +8,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkerParameters
-import com.tflwidget.Prefs.appKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -40,10 +39,10 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
             val destId = Prefs.destId(ctx, id)
             val title = Prefs.destName(ctx, id)?.let { "$from → $it" } ?: from
             try {
-                var arrivals = TflApi.arrivals(stopId, ctx.appKey)
+                var arrivals = TflApi.arrivals(stopId)
                 if (destId != null) {
-                    val destIds = TflApi.stopIds(destId, ctx.appKey)
-                    arrivals = arrivals.filter { TflApi.callsAt(it, destIds, ctx.appKey) }
+                    val destIds = TflApi.stopIds(destId)
+                    arrivals = arrivals.filter { TflApi.callsAt(it, destIds) }
                 }
                 WidgetRenderer.showArrivals(ctx, id, title, arrivals, filtered = destId != null)
             } catch (e: Exception) {

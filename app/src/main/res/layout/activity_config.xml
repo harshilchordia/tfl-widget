@@ -182,29 +182,6 @@
                     </com.google.android.material.textfield.TextInputLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <!-- Advanced -->
-            <TextView
-                style="@style/ConfigSectionTitle"
-                android:text="@string/section_advanced" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="@string/app_key_hint"
-                app:endIconMode="password_toggle"
-                app:helperText="@string/app_key_summary"
-                app:startIconDrawable="@drawable/ic_key">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/app_key_input"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:inputType="textPassword"
-                    android:maxLines="1" />
-            </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
     </ScrollView>
 
