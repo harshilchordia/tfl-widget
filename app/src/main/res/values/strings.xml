@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">TfL Departures</string>
+    <string name="widget_description">Live departures from a TfL station or stop</string>
+    <string name="search_hint">Station or stop name (e.g. Oxford Circus)</string>
+    <string name="app_key_hint">TfL app_key (optional)</string>
+    <string name="search">Search</string>
+    <string name="searching">Searching…</string>
+    <string name="no_results">No stations found</string>
+    <string name="search_failed">Search failed: %1$s</string>
+    <string name="add_widget_hint">Add the TfL Departures widget from your home screen to pick a station.</string>
+    <string name="dest_hint">Where are you going? (e.g. Brixton)</string>
+    <string name="choose_destination">From %1$s — destination (optional)</string>
+    <string name="skip_destination">No destination — show all departures</string>
+    <string name="show_clock">Show departure times (e.g. 14:32) as well as minutes</string>
+</resources>
