@@ -27,6 +27,10 @@ object Prefs {
         .remove("stop_$widgetId").remove("name_$widgetId")
         .remove("dest_$widgetId").remove("destname_$widgetId").apply()
 
+    val REFRESH_OPTIONS = intArrayOf(1, 2, 5, 15)
+    fun refreshMinutes(c: Context) = sp(c).getInt("refresh_minutes", 1)
+    fun setRefreshMinutes(c: Context, m: Int) = sp(c).edit().putInt("refresh_minutes", m).apply()
+
     var Context.appKey: String?
         get() = sp(this).getString("app_key", null)
         set(v) { sp(this).edit().putString("app_key", v).apply() }

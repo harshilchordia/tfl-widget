@@ -12,6 +12,7 @@ class DeparturesWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         ids.forEach { refreshNow(context, it) }
         schedulePeriodic(context)
+        scheduleAuto(context, ExistingWorkPolicy.KEEP)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -37,12 +38,30 @@ class DeparturesWidget : AppWidgetProvider() {
     }
 
     override fun onDisabled(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK)
+        WorkManager.getInstance(context).apply {
+            cancelUniqueWork(PERIODIC_WORK)
+            cancelUniqueWork(AUTO_WORK)
+        }
     }
 
     companion object {
         const val ACTION_REFRESH = "com.tflwidget.REFRESH"
         private const val PERIODIC_WORK = "tfl_periodic"
+        private const val AUTO_WORK = "tfl_auto"
+
+        /**
+         * Auto-refresh loop: a one-off job that runs after the user's chosen interval
+         * and then schedules the next one. (PeriodicWork can't go below 15 minutes.)
+         * Use REPLACE to restart with a new interval, KEEP to just make sure it's running,
+         * APPEND_OR_REPLACE from inside the worker so it doesn't cancel itself.
+         */
+        fun scheduleAuto(context: Context, policy: ExistingWorkPolicy) {
+            val req = OneTimeWorkRequestBuilder<UpdateWorker>()
+                .setInitialDelay(Prefs.refreshMinutes(context).toLong(), TimeUnit.MINUTES)
+                .setInputData(workDataOf(UpdateWorker.KEY_AUTO to true))
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(AUTO_WORK, policy, req)
+        }
 
         fun refreshNow(context: Context, widgetId: Int) {
             val req = OneTimeWorkRequestBuilder<UpdateWorker>()
@@ -53,7 +72,7 @@ class DeparturesWidget : AppWidgetProvider() {
                 .enqueueUniqueWork("tfl_refresh_$widgetId", ExistingWorkPolicy.REPLACE, req)
         }
 
-        /** Android limits background periodic work to every 15 minutes. */
+        /** Safety net: restarts the auto-refresh loop if the system ever drops it. */
         fun schedulePeriodic(context: Context) {
             val req = PeriodicWorkRequestBuilder<UpdateWorker>(15, TimeUnit.MINUTES)
                 .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))

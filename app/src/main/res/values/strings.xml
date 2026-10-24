@@ -1,15 +1,29 @@
 <resources>
     <string name="app_name">TfL Departures</string>
     <string name="widget_description">Live departures from a TfL station or stop</string>
-    <string name="search_hint">Station or stop name (e.g. Oxford Circus)</string>
-    <string name="app_key_hint">TfL app_key (optional)</string>
-    <string name="search">Search</string>
+    <string name="config_subtitle">Widget settings</string>
+
+    <string name="section_journey">Journey</string>
+    <string name="from_label">From</string>
+    <string name="to_label">To (optional)</string>
+    <string name="to_placeholder">Any destination</string>
+    <string name="swap">Swap from and to</string>
+    <string name="destination_explainer">With a destination set, only trains that stop there are shown.</string>
+    <string name="same_station_error">Destination must be different from the departure station</string>
+
+    <string name="section_display">Display</string>
+    <string name="show_clock">Show departure times</string>
+    <string name="show_clock_summary">Show the clock time (e.g. 14:32) under the minutes</string>
+    <string name="auto_refresh">Auto-refresh</string>
+    <string name="auto_refresh_summary">Applies to all widgets. Only refreshes while the screen is on.</string>
+
+    <string name="section_advanced">Advanced</string>
+    <string name="app_key_hint">TfL API key (optional)</string>
+    <string name="app_key_summary">Free from api-portal.tfl.gov.uk. Gives higher rate limits.</string>
+
+    <string name="save">Save</string>
     <string name="searching">Searching…</string>
     <string name="no_results">No stations found</string>
     <string name="search_failed">Search failed: %1$s</string>
-    <string name="add_widget_hint">Add the TfL Departures widget from your home screen to pick a station.</string>
-    <string name="dest_hint">Where are you going? (e.g. Brixton)</string>
-    <string name="choose_destination">From %1$s — destination (optional)</string>
-    <string name="skip_destination">No destination — show all departures</string>
-    <string name="show_clock">Show departure times (e.g. 14:32) as well as minutes</string>
+    <string name="add_widget_hint">To set up departures, long-press your home screen, choose Widgets and add TfL Departures. You can also tap the station name on an existing widget.</string>
 </resources>

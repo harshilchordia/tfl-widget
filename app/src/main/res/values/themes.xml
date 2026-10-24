@@ -1,3 +1,23 @@
 <resources>
-    <style name="Theme.TflWidget" parent="Theme.Material3.DayNight.NoActionBar" />
+    <style name="Theme.TflWidget" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#0019A8</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#DDE1FF</item>
+        <item name="colorOnPrimaryContainer">#001159</item>
+        <item name="colorSecondary">#DC241F</item>
+        <item name="colorTertiaryContainer">#FFF1C2</item>
+        <item name="colorOnTertiaryContainer">#3D2E00</item>
+        <item name="android:statusBarColor">#0019A8</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="ConfigSectionTitle">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">24dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:paddingHorizontal">4dp</item>
+        <item name="android:textAppearance">?attr/textAppearanceLabelLarge</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
 </resources>

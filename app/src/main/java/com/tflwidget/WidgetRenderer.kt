@@ -7,11 +7,12 @@ import android.content.Intent
 import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.widget.RemoteViewsCompat
 import java.text.SimpleDateFormat
 import java.util.*
 
 object WidgetRenderer {
-    private const val MAX_ROWS = 8
+    private const val MAX_ROWS = 40
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.UK).apply { timeZone = TimeZone.getTimeZone("Europe/London") }
 
     private fun base(ctx: Context, widgetId: Int, title: String): RemoteViews {
@@ -27,7 +28,12 @@ object WidgetRenderer {
         )
         views.setOnClickPendingIntent(R.id.refresh_button, refreshPi)
 
-        views.setOnClickPendingIntent(R.id.rows, refreshPi)
+        // List rows can't have their own click handlers; they fill in this template instead.
+        // (Must be mutable so the launcher can add the fill-in extras.)
+        val templatePi = PendingIntent.getBroadcast(
+            ctx, widgetId + 2_000_000, refresh, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+        views.setPendingIntentTemplate(R.id.rows, templatePi)
 
         val config = Intent(ctx, ConfigActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
@@ -45,7 +51,8 @@ object WidgetRenderer {
 
     private fun message(ctx: Context, widgetId: Int, title: String, msg: String) {
         val v = base(ctx, widgetId, title)
-        v.removeAllViews(R.id.rows)
+        setRows(ctx, widgetId, v, emptyList())
+        v.setViewVisibility(R.id.rows, View.GONE)
         v.setViewVisibility(R.id.message, View.VISIBLE)
         v.setTextViewText(R.id.message, msg)
         push(ctx, widgetId, v)
@@ -70,32 +77,21 @@ object WidgetRenderer {
         val size = size(ctx, widgetId)
         val showClock = Prefs.showClock(ctx, widgetId)
         v.setViewVisibility(R.id.message, View.GONE)
-        v.removeAllViews(R.id.rows)
-        arrivals.take(size.rows).forEach { a ->
-            val row = RemoteViews(ctx.packageName, if (size.compact) R.layout.widget_row_compact else R.layout.widget_row)
-            row.setInt(R.id.line_color, "setBackgroundColor", lineColor(a.lineId))
-            row.setTextViewText(R.id.destination, a.destination)
-            val mins = a.secondsToStation / 60
-            val eta = when {
-                mins == 0 -> "Due"
-                size.narrow && showClock -> "${mins}m"
-                else -> "$mins min"
+        v.setViewVisibility(R.id.rows, View.VISIBLE)
+        // Scrollable list: all departures, the widget size just decides how many are visible at once
+        setRows(ctx, widgetId, v, arrivals.take(MAX_ROWS).map { a ->
+            RemoteViews(ctx.packageName, R.layout.widget_row).apply {
+                setInt(R.id.line_color, "setBackgroundColor", lineColor(a.lineId))
+                setTextViewText(R.id.destination, a.destination)
+                setTextViewText(R.id.details, listOf(a.lineName, a.platform).filter { it.isNotBlank() }.joinToString(" · "))
+                val mins = a.secondsToStation / 60
+                setTextViewText(R.id.eta, if (mins == 0) "Due" else "$mins min")
+                setTextViewText(R.id.clock_time, timeFmt.format(Date(a.expectedEpochMs)))
+                setViewVisibility(R.id.clock_time, if (showClock) View.VISIBLE else View.GONE)
+                setOnClickFillInIntent(R.id.row_root, Intent()) // tap a row = refresh
             }
-            val clock = timeFmt.format(Date(a.expectedEpochMs))
-            if (size.compact) {
-                // One line per departure: no line/platform, clock time next to minutes
-                row.setTextViewText(R.id.eta, if (showClock) "$eta · $clock" else eta)
-            } else {
-                row.setTextViewText(R.id.details, listOf(a.lineName, a.platform).filter { it.isNotBlank() }.joinToString(" · "))
-                row.setTextViewText(R.id.eta, eta)
-                row.setTextViewText(R.id.clock_time, clock)
-                row.setViewVisibility(R.id.clock_time, if (showClock) View.VISIBLE else View.GONE)
-            }
-            v.addView(R.id.rows, row)
-        }
-        v.setTextViewTextSize(R.id.station_name, android.util.TypedValue.COMPLEX_UNIT_SP, if (size.compact) 11f else 13f)
-        val pad = (if (size.compact) 6 else 10) * ctx.resources.displayMetrics.density
-        v.setViewPadding(R.id.root, pad.toInt(), pad.toInt(), pad.toInt(), pad.toInt())
+        })
+        // Not enough room for "Updated HH:mm" next to the name on narrow widgets
         v.setTextViewText(R.id.updated, if (size.narrow) "" else "Updated " + timeFmt.format(Date()))
         push(ctx, widgetId, v)
     }
@@ -105,27 +101,20 @@ object WidgetRenderer {
         Regex(" (Underground|DLR|Rail|Overground|Elizabeth line|Tram Stop|Tram)? ?Station(?=$| →)| \\(.*?\\)", RegexOption.IGNORE_CASE), ""
     ).replace(Regex("\\s+"), " ").trim()
 
-    private data class Size(val rows: Int, val compact: Boolean, val narrow: Boolean)
-
-    /**
-     * Works out how many departures fit in the widget's current size.
-     * Portrait uses MIN_WIDTH x MAX_HEIGHT; that's the common case on phones.
-     */
-    private fun size(ctx: Context, widgetId: Int): Size {
-        val o = AppWidgetManager.getInstance(ctx).getAppWidgetOptions(widgetId)
-        val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
-        val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 110)
-        val narrow = w < 180
-        val available = h - HEADER_DP
-        // Short widgets switch to single-line rows so more departures fit
-        val compact = h < 130 || narrow
-        val rowH = if (compact) COMPACT_ROW_DP else FULL_ROW_DP
-        return Size((available / rowH).coerceIn(1, MAX_ROWS), compact, narrow)
+    private fun setRows(ctx: Context, widgetId: Int, v: RemoteViews, rows: List<RemoteViews>) {
+        val items = RemoteViewsCompat.RemoteCollectionItems.Builder()
+            .setViewTypeCount(1)
+            .apply { rows.forEachIndexed { i, r -> addItem(i.toLong(), r) } }
+            .build()
+        RemoteViewsCompat.setRemoteAdapter(ctx, v, widgetId, R.id.rows, items)
     }
 
-    private const val HEADER_DP = 32
-    private const val FULL_ROW_DP = 38
-    private const val COMPACT_ROW_DP = 24
+    private data class Size(val narrow: Boolean)
+
+    private fun size(ctx: Context, widgetId: Int): Size {
+        val o = AppWidgetManager.getInstance(ctx).getAppWidgetOptions(widgetId)
+        return Size(narrow = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250) < 180)
+    }
 
     private fun lineColor(lineId: String): Int = Color.parseColor(
         when (lineId) {
