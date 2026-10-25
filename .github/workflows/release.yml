@@ -36,17 +36,39 @@ jobs:
           echo "name=$VERSION" >> "$GITHUB_OUTPUT"
           echo "code=$((10#$MAJOR * 1000000 + 10#$MINOR * 1000 + 10#$PATCH))" >> "$GITHUB_OUTPUT"
 
-      - name: Build APK
+      # The same permanent key signs every release, so new versions install
+      # over old ones. It's stored base64-encoded in the SIGNING_KEYSTORE_BASE64 secret.
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "SIGNING_KEYSTORE_BASE64 secret is missing; refusing to build an APK that can't update installed versions" >&2
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed APK
+        env:
+          SIGNING_STORE_FILE: ${{ runner.temp }}/release.jks
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug \
+          ./gradlew assembleRelease \
             -PappVersionName="${{ steps.version.outputs.name }}" \
             -PappVersionCode="${{ steps.version.outputs.code }}"
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep "SHA-256"
 
       - name: Prepare release files
         run: |
           APK="tfl-widget-${{ steps.version.outputs.name }}.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "$APK"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
           shasum -a 256 "$APK" > "$APK.sha256"
 
       - name: Attach APK to release
