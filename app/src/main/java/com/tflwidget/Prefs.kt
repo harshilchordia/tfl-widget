@@ -35,7 +35,7 @@ object Prefs {
         cache.arrivals.forEach { a ->
             arr.put(org.json.JSONObject()
                 .put("lineId", a.lineId).put("lineName", a.lineName).put("destination", a.destination)
-                .put("platform", a.platform).put("expected", a.expectedEpochMs))
+                .put("platform", a.platform).put("expected", a.expectedEpochMs).put("status", a.status))
         }
         val json = org.json.JSONObject()
             .put("title", cache.title).put("filtered", cache.filtered)
@@ -54,7 +54,8 @@ object Prefs {
                 val a = arr.getJSONObject(i)
                 val expected = a.getLong("expected")
                 Arrival(a.getString("lineId"), a.getString("lineName"), a.getString("destination"),
-                    a.getString("platform"), ((expected - System.currentTimeMillis()) / 1000).toInt(), expected)
+                    a.getString("platform"), ((expected - System.currentTimeMillis()) / 1000).toInt(), expected,
+                    status = a.optString("status"))
             },
         )
     }.getOrNull()

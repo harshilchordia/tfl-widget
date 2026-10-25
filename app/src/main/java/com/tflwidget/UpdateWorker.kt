@@ -53,6 +53,7 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
                     val destIds = TflApi.stopIds(destId)
                     arrivals = arrivals.filter { TflApi.callsAt(it, destIds) }
                 }
+                arrivals = (arrivals + nationalRail(stopId, destId)).sortedBy { it.expectedEpochMs }
                 Prefs.saveCache(ctx, id, Prefs.Cache(title, destId != null, System.currentTimeMillis(), arrivals))
                 WidgetRenderer.renderFromCache(ctx, id)
             } catch (e: Exception) {
@@ -65,6 +66,25 @@ class UpdateWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         }
         DeparturesWidget.scheduleTick(ctx)
         Result.success()
+    }
+
+    /**
+     * National Rail trains from the same station. With a destination, Darwin filters
+     * to trains calling there; a destination with no rail station means none apply.
+     * Failures are ignored so TfL departures still show.
+     */
+    private fun nationalRail(stopId: String, destId: String?): List<Arrival> {
+        if (!NationalRailApi.enabled) return emptyList()
+        return runCatching {
+            val from = NationalRailApi.crsCodes(stopId)
+            val to = destId?.let { NationalRailApi.crsCodes(it) }
+            if (from.isEmpty() || (to != null && to.isEmpty())) return emptyList()
+            from.flatMap { crs ->
+                if (to == null) NationalRailApi.departures(crs, null)
+                else to.flatMap { NationalRailApi.departures(crs, it) }
+            }.distinctBy { Triple(it.lineId, it.destination, it.expectedEpochMs) }
+        }.onFailure { android.util.Log.w("TflWidget", "National Rail fetch failed", it) }
+            .getOrDefault(emptyList())
     }
 
     private fun isFresh(ctx: Context, id: Int, title: String): Boolean {

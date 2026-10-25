@@ -94,7 +94,17 @@ object WidgetRenderer {
                 setTextViewText(R.id.destination, a.destination)
                 setTextViewText(R.id.details, listOf(a.lineName, a.platform).filter { it.isNotBlank() }.joinToString(" · "))
                 val mins = ((a.expectedEpochMs - now) / 60_000).toInt()
-                setTextViewText(R.id.eta, if (mins == 0) "Due" else "$mins min")
+                setTextViewText(R.id.eta, when {
+                    a.status == "Cancelled" -> "Cancelled"
+                    mins == 0 -> "Due"
+                    else -> "$mins min"
+                })
+                // Cancelled in red, delayed in orange, otherwise the usual yellow
+                setTextColor(R.id.eta, Color.parseColor(when (a.status) {
+                    "Cancelled" -> "#FF6B6B"
+                    "Delayed" -> "#FFA94D"
+                    else -> "#FFD300"
+                }))
                 setTextViewText(R.id.clock_time, timeFmt.format(Date(a.expectedEpochMs)))
                 setViewVisibility(R.id.clock_time, if (showClock) View.VISIBLE else View.GONE)
                 setOnClickFillInIntent(R.id.row_root, Intent()) // tap a row = refresh
@@ -135,6 +145,22 @@ object WidgetRenderer {
             "dlr" -> "#00A4A7"
             "elizabeth" -> "#6950A1"
             "tram" -> "#84B817"
+            // National Rail operators (lineId = "nr-" + Darwin operator code)
+            "nr-LE" -> "#D70428" // Greater Anglia
+            "nr-CC" -> "#B7007C" // c2c
+            "nr-TL" -> "#E9438D" // Thameslink
+            "nr-GN" -> "#00A6E6" // Great Northern
+            "nr-SE" -> "#00AFE8" // Southeastern
+            "nr-SN" -> "#8CC63E" // Southern
+            "nr-SW" -> "#24398C" // South Western Railway
+            "nr-GW" -> "#0A493E" // GWR
+            "nr-CH" -> "#00BFFF" // Chiltern
+            "nr-LM" -> "#FF8300" // West Midlands Trains
+            "nr-VT" -> "#004354" // Avanti West Coast
+            "nr-GR" -> "#CE0E2D" // LNER
+            "nr-EM" -> "#4E2E58" // East Midlands Railway
+            "nr-HX" -> "#532E63" // Heathrow Express
+            "nr-GX" -> "#E2001A" // Gatwick Express
             "liberty", "lioness", "mildmay", "suffragette", "weaver", "windrush", "london-overground" -> "#EE7C0E"
             else -> "#DC241F" // buses & everything else: TfL red
         }

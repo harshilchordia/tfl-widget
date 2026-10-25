@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +7,15 @@ plugins {
 
 val appVersionCode = providers.gradleProperty("appVersionCode").orNull?.toIntOrNull() ?: 1
 val appVersionName = providers.gradleProperty("appVersionName").orNull ?: "1.0"
+
+// National Rail (Rail Data Marketplace) key. Never committed: comes from
+// -PrdmApiKey, the RDM_API_KEY env var (CI secret), or local.properties "rdm.apiKey".
+val rdmApiKey: String = providers.gradleProperty("rdmApiKey").orNull
+    ?: providers.environmentVariable("RDM_API_KEY").orNull
+    ?: rootProject.file("local.properties").takeIf { it.exists() }?.let { f ->
+        Properties().apply { f.inputStream().use { load(it) } }.getProperty("rdm.apiKey")
+    }
+    ?: ""
 
 android {
     namespace = "com.tflwidget"
@@ -16,6 +27,7 @@ android {
         targetSdk = 34
         versionCode = appVersionCode
         versionName = appVersionName
+        buildConfigField("String", "RDM_API_KEY", "\"${rdmApiKey}\"")
     }
 
     compileOptions {
@@ -23,6 +35,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    buildFeatures { buildConfig = true }
 }
 
 dependencies {

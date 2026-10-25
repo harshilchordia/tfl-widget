@@ -19,6 +19,8 @@ data class Arrival(
     val expectedEpochMs: Long,
     val naptanId: String = "",
     val destinationNaptanId: String = "",
+    /** "Cancelled" / "Delayed" for National Rail services, otherwise empty. */
+    val status: String = "",
 )
 
 /** Minimal client for the TfL Unified API (https://api.tfl.gov.uk). */
