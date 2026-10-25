@@ -22,7 +22,12 @@ object Prefs {
     fun setShowClock(c: Context, widgetId: Int, show: Boolean) =
         sp(c).edit().putBoolean("clock_$widgetId", show).apply()
 
+    fun showHeader(c: Context, widgetId: Int) = sp(c).getBoolean("header_$widgetId", true)
+    fun setShowHeader(c: Context, widgetId: Int, show: Boolean) =
+        sp(c).edit().putBoolean("header_$widgetId", show).apply()
+
     fun delete(c: Context, widgetId: Int) = sp(c).edit()
+        .remove("header_$widgetId")
         .remove("clock_$widgetId").remove("cache_$widgetId")
         .remove("stop_$widgetId").remove("name_$widgetId")
         .remove("dest_$widgetId").remove("destname_$widgetId").apply()

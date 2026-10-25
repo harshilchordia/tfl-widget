@@ -28,6 +28,17 @@ object WidgetRenderer {
         )
         views.setOnClickPendingIntent(R.id.refresh_button, refreshPi)
 
+        // Station name hidden: no header row; the time + refresh move to a corner chip.
+        // (Settings are then opened by long-pressing the widget -> Widget settings.)
+        val showHeader = Prefs.showHeader(ctx, widgetId)
+        views.setViewVisibility(R.id.header, if (showHeader) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.corner_chip, if (showHeader) View.GONE else View.VISIBLE)
+        views.setOnClickPendingIntent(R.id.corner_chip, refreshPi)
+        // Let the last row scroll clear of the chip
+        val bottomPad = if (showHeader) 0 else (22 * ctx.resources.displayMetrics.density).toInt()
+        val topPad = (2 * ctx.resources.displayMetrics.density).toInt()
+        views.setViewPadding(R.id.rows, 0, topPad, 0, bottomPad)
+
         // List rows can't have their own click handlers; they fill in this template instead.
         // (Must be mutable so the launcher can add the fill-in extras.)
         val templatePi = PendingIntent.getBroadcast(
@@ -39,10 +50,9 @@ object WidgetRenderer {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
-        views.setOnClickPendingIntent(
-            R.id.station_name,
-            PendingIntent.getActivity(ctx, widgetId, config, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        )
+        val configPi = PendingIntent.getActivity(ctx, widgetId, config, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        views.setOnClickPendingIntent(R.id.station_name, configPi)
+        views.setOnClickPendingIntent(R.id.message, configPi) // e.g. "Tap here to choose a station"
         return views
     }
 
@@ -64,6 +74,7 @@ object WidgetRenderer {
     fun showLoading(ctx: Context, id: Int) {
         val v = RemoteViews(ctx.packageName, R.layout.widget_departures)
         v.setTextViewText(R.id.updated, "…")
+        v.setTextViewText(R.id.corner_time, "…")
         AppWidgetManager.getInstance(ctx).partiallyUpdateAppWidget(id, v)
     }
 
@@ -85,14 +96,16 @@ object WidgetRenderer {
         }
         val v = base(ctx, widgetId, cache.title)
         val showClock = Prefs.showClock(ctx, widgetId)
+        // Small widgets: one line per train (no line/platform line), time beside the minutes
+        val rowLayout = if (isSmall(ctx, widgetId)) R.layout.widget_row_compact else R.layout.widget_row
         v.setViewVisibility(R.id.message, View.GONE)
         v.setViewVisibility(R.id.rows, View.VISIBLE)
         // Scrollable list: all departures, the widget size just decides how many are visible at once
         setRows(ctx, widgetId, v, upcoming.take(MAX_ROWS).map { a ->
-            RemoteViews(ctx.packageName, R.layout.widget_row).apply {
+            RemoteViews(ctx.packageName, rowLayout).apply {
                 setInt(R.id.line_color, "setBackgroundColor", lineColor(a.lineId))
                 setTextViewText(R.id.destination, a.destination)
-                setTextViewText(R.id.details, listOf(a.lineName, a.platform).filter { it.isNotBlank() }.joinToString(" · "))
+                if (rowLayout == R.layout.widget_row) setTextViewText(R.id.details, listOf(a.lineName, a.platform).filter { it.isNotBlank() }.joinToString(" · "))
                 val mins = ((a.expectedEpochMs - now) / 60_000).toInt()
                 setTextViewText(R.id.eta, if (mins == 0) "Due" else "$mins min")
                 setTextViewText(R.id.clock_time, timeFmt.format(Date(a.expectedEpochMs)))
@@ -102,6 +115,7 @@ object WidgetRenderer {
         })
         // Time of the last successful fetch (not this redraw), so you can tell how fresh it is
         v.setTextViewText(R.id.updated, updated)
+        v.setTextViewText(R.id.corner_time, updated)
         push(ctx, widgetId, v)
         return true
     }
@@ -111,9 +125,21 @@ object WidgetRenderer {
         Regex(" (Underground|DLR|Rail|Overground|Elizabeth line|Tram Stop|Tram)? ?Station(?=$| →)| \\(.*?\\)", RegexOption.IGNORE_CASE), ""
     ).replace(Regex("\\s+"), " ").trim()
 
+    /**
+     * Up to 3 cells tall counts as small (launchers report ~50dp per cell; portrait
+     * phones use the max height). Two-line rows waste the most space there.
+     */
+    private fun isSmall(ctx: Context, widgetId: Int): Boolean {
+        val o = AppWidgetManager.getInstance(ctx).getAppWidgetOptions(widgetId)
+        val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)
+        return h in 1 until SMALL_HEIGHT_DP
+    }
+
+    private const val SMALL_HEIGHT_DP = 180
+
     private fun setRows(ctx: Context, widgetId: Int, v: RemoteViews, rows: List<RemoteViews>) {
         val items = RemoteViewsCompat.RemoteCollectionItems.Builder()
-            .setViewTypeCount(1)
+            .setViewTypeCount(2) // full and compact rows
             .apply { rows.forEachIndexed { i, r -> addItem(i.toLong(), r) } }
             .build()
         RemoteViewsCompat.setRemoteAdapter(ctx, v, widgetId, R.id.rows, items)

@@ -49,6 +49,7 @@ class ConfigActivity : AppCompatActivity() {
         toField = StationField(findViewById(R.id.to_layout), findViewById(R.id.to_input)) { updateSaveEnabled() }
 
         val clockSwitch = findViewById<MaterialSwitch>(R.id.show_clock_switch)
+        val headerSwitch = findViewById<MaterialSwitch>(R.id.show_header_switch)
         val refreshInput = findViewById<MaterialAutoCompleteTextView>(R.id.refresh_input)
 
         val refreshLabels = Prefs.REFRESH_OPTIONS.map { if (it == 1) "Every minute" else "Every $it minutes" }
@@ -62,6 +63,7 @@ class ConfigActivity : AppCompatActivity() {
             Prefs.stopId(this, widgetId)?.let { fromField.set(Station(it, Prefs.stopName(this, widgetId) ?: it, emptyList())) }
             Prefs.destId(this, widgetId)?.let { toField.set(Station(it, Prefs.destName(this, widgetId) ?: it, emptyList())) }
             clockSwitch.isChecked = Prefs.showClock(this, widgetId)
+            headerSwitch.isChecked = Prefs.showHeader(this, widgetId)
         }
 
         findViewById<View>(R.id.swap_button).setOnClickListener {
@@ -80,6 +82,7 @@ class ConfigActivity : AppCompatActivity() {
             Prefs.saveStation(this, widgetId, from.id, from.name)
             Prefs.saveDestination(this, widgetId, to?.id, to?.name)
             Prefs.setShowClock(this, widgetId, clockSwitch.isChecked)
+            Prefs.setShowHeader(this, widgetId, headerSwitch.isChecked)
             Prefs.clearCache(this, widgetId) // old station's departures must not be redrawn
 
             WidgetRenderer.showLoading(this, widgetId)

@@ -14,6 +14,8 @@
     <string name="section_display">Display</string>
     <string name="show_clock">Show departure times</string>
     <string name="show_clock_summary">Show the clock time (e.g. 14:32) under the minutes</string>
+    <string name="show_header">Show station name</string>
+    <string name="show_header_summary">Turn off to fit more departures. The update time and refresh move to a small corner button. To change settings later, long-press the widget and choose Widget settings.</string>
     <string name="auto_refresh">Auto-refresh</string>
     <string name="auto_refresh_summary">Applies to all widgets. Only refreshes while the screen is on.</string>
 

@@ -33,11 +33,11 @@ class DeparturesWidget : AppWidgetProvider() {
         }
     }
 
-    /** Re-render when the user resizes the widget so the row count fits. */
+    /** Resized: redraw from saved data so the layout (one- or two-line rows) fits the new size. */
     override fun onAppWidgetOptionsChanged(
         context: Context, manager: AppWidgetManager, widgetId: Int, newOptions: android.os.Bundle
     ) {
-        refreshNow(context, widgetId)
+        if (!WidgetRenderer.renderFromCache(context, widgetId)) refreshNow(context, widgetId)
     }
 
     override fun onDeleted(context: Context, ids: IntArray) {

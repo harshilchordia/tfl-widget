@@ -1,62 +1,99 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FrameLayout root so the corner chip can sit on top of the list when the header is hidden -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:orientation="vertical"
     android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/station_name"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:id="@+id/header"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="TfL Departures"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/station_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="TfL Departures"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/updated"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:textColor="#99FFFFFF"
+                android:textSize="10sp" />
+
+            <ImageView
+                android:id="@+id/refresh_button"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="Refresh"
+                android:padding="2dp"
+                android:src="@drawable/ic_refresh" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/updated"
+            android:id="@+id/message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="4dp"
+            android:text="Loading…"
+            android:textColor="#CCFFFFFF"
+            android:textSize="13sp" />
+
+        <ListView
+            android:id="@+id/rows"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:paddingTop="2dp"
+            android:scrollbars="none" />
+    </LinearLayout>
+
+    <!-- Shown instead of the header when the station name is hidden -->
+    <LinearLayout
+        android:id="@+id/corner_chip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:background="@drawable/chip_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="3dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/corner_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="6dp"
-            android:textColor="#99FFFFFF"
+            android:layout_marginEnd="4dp"
+            android:textColor="#CCFFFFFF"
             android:textSize="10sp" />
 
         <ImageView
-            android:id="@+id/refresh_button"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
             android:contentDescription="Refresh"
-            android:padding="2dp"
             android:src="@drawable/ic_refresh" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/message"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="4dp"
-        android:text="Loading…"
-        android:textColor="#CCFFFFFF"
-        android:textSize="13sp" />
-
-    <ListView
-        android:id="@+id/rows"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:divider="@null"
-        android:dividerHeight="0dp"
-        android:paddingTop="2dp"
-        android:scrollbars="none" />
-</LinearLayout>
+</FrameLayout>
